@@ -252,23 +252,24 @@ def display_menu():
 # menu data should contain all menu for the day
 # therefore editing only one day at a time should be possible on the frontend
 @app.post("/menu/add")
-def add_to_menu(day_number: int, menu, user_id: int):
+async def add_to_menu1(request : Request):
     connection = None
     try:
-        if not isinstance(day_number, int) or day_number < 1:
-            raise HTTPException(
-                status_code=400, 
-                detail="Day number must be a positive integer"
-            )        
-        if not menu:
-            raise HTTPException(
-                status_code=400, 
-                detail="Menu data cannot be empty"
-            )
 
+        
         connection = sqlite3.connect(database)
         cursor = connection.cursor()
+
+        request_data = await request.json()
         
+        menu_data = request_data.get("menu", dict)
+        day_number = request_data.get("day_number", int)
+        menu = dict()
+
+        for eating in menu_data:  
+            if menu_data[eating]:       
+                menu[eating] = {menu_data[eating][0]['name'] : 1}
+
         user_id = 2  # temporary
         cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
         if not cursor.fetchone():
@@ -276,7 +277,6 @@ def add_to_menu(day_number: int, menu, user_id: int):
                 status_code=404, 
                 detail="User not found"
             )
-
         add_to_menu(cursor, day_number, user_id, menu)
         connection.commit()
         return {"message": "Receipts successfully added!"}

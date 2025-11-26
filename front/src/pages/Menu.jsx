@@ -136,10 +136,9 @@ export default function Menu() {
 
   const addRecipeToDay = useCallback((dateString, mealType, recipeId) => {
     const recipe = recipes.find(r => r.id === recipeId);
-    console.log(dateString)
     if (!recipe) return;
 
-    setMenuData(prev => {
+    setMenuData(async (prev) => {
       const newData = { ...prev };
       if (!newData[dateString]) {
         newData[dateString] = { breakfast: [], lunch: [], dinner: [] };
@@ -153,7 +152,23 @@ export default function Menu() {
       if (!isAlreadyAdded) {
         newData[dateString][mealType] = [...newData[dateString][mealType], recipe];
       }
+
+
+      const day_number = dateString[8] + dateString[9]
+      const outData = newData[dateString]
+      const response = await fetch('http://localhost:8000/menu/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          menu: outData,
+          day_number: parseInt(day_number)
+        })
+      });
+
       
+
       return newData;
     });
     setShowRecipeSelector(null);
