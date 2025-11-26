@@ -294,7 +294,7 @@ def display_menu():
 # menu data should contain all menu for the day
 # therefore editing only one day at a time should be possible on the frontend
 @app.post("/menu/add")
-def add_to_menu(day_number: int, receipt, user_id: int):
+def add_to_menu(day_number: int, menu, user_id: int):
     connection = None
     try:
         if not isinstance(day_number, int) or day_number < 1:
@@ -302,7 +302,7 @@ def add_to_menu(day_number: int, receipt, user_id: int):
                 status_code=400, 
                 detail="Day number must be a positive integer"
             )        
-        if not receipt:
+        if not menu:
             raise HTTPException(
                 status_code=400, 
                 detail="Menu data cannot be empty"
@@ -319,7 +319,7 @@ def add_to_menu(day_number: int, receipt, user_id: int):
                 detail="User not found"
             )
 
-        add_to_menu(cursor, day_number, user_id, receipt)
+        add_to_menu(cursor, day_number, user_id, menu)
         connection.commit()
         return {"message": "Receipts successfully added!"}
 

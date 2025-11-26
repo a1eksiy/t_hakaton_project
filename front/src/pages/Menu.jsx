@@ -136,6 +136,7 @@ export default function Menu() {
 
   const addRecipeToDay = useCallback((dateString, mealType, recipeId) => {
     const recipe = recipes.find(r => r.id === recipeId);
+    console.log(dateString)
     if (!recipe) return;
 
     setMenuData(prev => {
