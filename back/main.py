@@ -243,7 +243,7 @@ def calculate_shopping_list():
 
 
 @app.get("/menu/display")
-def display_menu(user_id : int):
+def display_menu():
     connection = None
     try:
         connection = sqlite3.connect(database)
@@ -258,8 +258,13 @@ def display_menu(user_id : int):
                 detail="User not found"
             )
 
-        cursor.execute("SELECT day_number, menu FROM menu WHERE user_id = ?", (user_id,))
-        data = cursor.fetchall()
+        cursor.execute("SELECT name_of_receipt FROM receipts WHERE user_id = ?", (user_id,))
+        data_list = cursor.fetchall()
+        data = list()
+        i = 1
+        for item in data_list:
+            data.append({"id" : i, "name" : item[0]})
+            i = i + 1
         return data
 
     except HTTPException:
