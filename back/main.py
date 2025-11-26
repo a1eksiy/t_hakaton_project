@@ -27,48 +27,6 @@ def read_root():
     return {"message": "Connected to FastAPI"}
 
 
-"""@app.get("/receipts/display")
-def display_receipts():
-    connection = None
-    try:
-        connection = sqlite3.connect(database)
-        cursor = connection.cursor()
-        cursor.execute("SELECT id, name_of_receipt, ingredients FROM receipts")
-        data = cursor.fetchall()
-
-        # Преобразуем данные в формат для фронтенда
-        recipes = []
-        for row in data:
-            recipe_id, name, ingredients_json = row
-            try:
-                ingredients_obj = (
-                    json.loads(ingredients_json)
-                    if isinstance(ingredients_json, str)
-                    else ingredients_json
-                )
-                ingredients = [
-                    {"name": ing_name, "amount": amount, "unit": "г"}
-                    for ing_name, amount in ingredients_obj.items()
-                ]
-                recipes.append(
-                    {"id": recipe_id, "name": name, "ingredients": ingredients}
-                )
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error parsing ingredients for recipe {name}: {e}")
-                continue
-
-        return recipes
-    except sqlite3.Error as error:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error occurred when connecting to the database: {str(error)}",
-        )
-    finally:
-        if connection:
-            connection.close()
-            """
-
-
 @app.get("/receipts/display")
 def display_receipts():
     try:
