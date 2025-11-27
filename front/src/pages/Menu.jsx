@@ -140,6 +140,7 @@ export default function Menu() {
 
     setMenuData(async (prev) => {
       const newData = { ...prev };
+      console.log(prev)
       if (!newData[dateString]) {
         newData[dateString] = { breakfast: [], lunch: [], dinner: [] };
       }
@@ -167,8 +168,12 @@ export default function Menu() {
         })
       });
 
-      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Ошибка при добавлении продукта');
+      }
 
+      
       return newData;
     });
     setShowRecipeSelector(null);

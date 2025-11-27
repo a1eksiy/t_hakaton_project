@@ -11,7 +11,7 @@ def add_to_menu(cursor, day_number, user_id, menu_added):
                 menu = dict()
         for eating in menu_added:
                 for receipt in menu_added[eating]:
-                        if receipt in menu:
+                        if eating in menu and receipt in menu[eating]:
                                 menu[eating][receipt] = menu[eating][receipt] + menu_added[eating][receipt]
                         else:
                                 menu[eating] = {receipt : menu_added[eating][receipt]}
@@ -20,8 +20,8 @@ def add_to_menu(cursor, day_number, user_id, menu_added):
         menu_json = json.dumps(menu)
         cursor.execute("DELETE FROM menu WHERE user_id = ? AND day_number = ?", (user_id, day_number))
         day_number_user_id = str(user_id)+"_"+str(day_number)
-        cursor.execute("INSERT INTO menu (user_id_day_number, user_id, day_number, menu) VALUES (?, ?, ?, ?)", (day_number, user_id, day_number, menu_json))
-        
+        cursor.execute("INSERT INTO menu (user_id_day_number, user_id, day_number, menu) VALUES (?, ?, ?, ?)", (day_number_user_id, user_id, day_number, menu_json))
+
 
 # menu = {"breakfast" : [{names of receipts:amount}], "lunch" : [names of receipts], "dinner" : [names of receipts]}
 
