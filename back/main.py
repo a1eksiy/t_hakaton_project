@@ -255,20 +255,17 @@ def display_menu():
 async def add_to_menu1(request : Request):
     connection = None
     try:
-
         
         connection = sqlite3.connect(database)
         cursor = connection.cursor()
 
         request_data = await request.json()
-        
         menu_data = request_data.get("menu", dict)
         day_number = request_data.get("day_number", int)
         menu = dict()
-
-        for eating in menu_data:  
-            if menu_data[eating]:       
-                menu[eating] = {menu_data[eating][0]['name'] : 1}
+        for eating in menu_data: 
+            for num in range(len(menu_data[eating])):  
+                menu[eating] = {menu_data[eating][num]['name'] : 1}
 
         user_id = 2  # temporary
         cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))

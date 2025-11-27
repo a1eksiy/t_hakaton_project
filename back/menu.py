@@ -4,17 +4,14 @@ import json
 def add_to_menu(cursor, day_number, user_id, menu_added):
         cursor.execute("SELECT menu FROM menu WHERE user_id = ? AND day_number = ?", (user_id, day_number))
         menu_json = cursor.fetchone()
-        
         try:
                 menu = json.loads(menu_json[0])
         except:
                 menu = dict()
         for eating in menu_added:
                 for receipt in menu_added[eating]:
-                        if eating in menu and receipt in menu[eating]:
-                                menu[eating][receipt] = menu[eating][receipt] + menu_added[eating][receipt]
-                        else:
-                                menu[eating] = {receipt : menu_added[eating][receipt]}
+                        menu[eating] = {receipt : menu_added[eating][receipt]}
+                                
 
 
         menu_json = json.dumps(menu)

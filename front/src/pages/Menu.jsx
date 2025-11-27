@@ -1,17 +1,47 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import './Menu.css';
 
 export default function Menu() {
-  const [periodType, setPeriodType] = useState('week'); // 'day', 'week', or 'month'
+  const [periodType, setPeriodType] = useState('week');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [menuData, setMenuData] = useState({});
   const [recipes, setRecipes] = useState([]);
-  const [showRecipeSelector, setShowRecipeSelector] = useState(null); // { dateString, mealType }
+  const [showRecipeSelector, setShowRecipeSelector] = useState(null);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [recipesError, setRecipesError] = useState(null);
 
+  // useRef для отслеживания предыдущего значения menuData
+  const previousMenuDataRef = useRef({});
+
+  // Функция для отправки данных на сервер
+  const sendDayToServer = useCallback(async (dateString, dayData) => {
+    
+    const day_number = dateString.substring(8, 10)
+    try {
+      const response = await fetch('http://localhost:8000/menu/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          menu: dayData,
+          day_number: day_number
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Ошибка при добавлении продукта');
+      }
+      
+      console.log('Данные успешно отправлены для дня:', dateString);
+    } catch (error) {
+      console.error('Ошибка при отправке данных:', error);
+    }
+  }, []);
+
   // Функция для загрузки рецептов из API
-  const fetchRecipesFromAPI = async () => {
+  const fetchRecipesFromAPI = useCallback(async () => {
     try {
       setLoadingRecipes(true);
       setRecipesError(null);
@@ -30,12 +60,7 @@ export default function Menu() {
       }
       
       const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        setRecipes(data);
-      } else {
-        setRecipes([]);
-      }
+      setRecipes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching recipes:', err);
       setRecipesError(err.message || 'Не удалось загрузить рецепты');
@@ -43,75 +68,107 @@ export default function Menu() {
     } finally {
       setLoadingRecipes(false);
     }
-  };
-
-  useEffect(() => {
-    // Загружаем меню из localStorage
-    const savedMenu = localStorage.getItem('menuData');
-    if (savedMenu) {
-      setMenuData(JSON.parse(savedMenu));
-    }
   }, []);
 
-  // Загружаем рецепты из API при открытии селектора
+  // Загружаем меню и рецепты при монтировании
   useEffect(() => {
-    if (showRecipeSelector) {
-      fetchRecipesFromAPI();
+    const savedMenu = localStorage.getItem('menuData');
+    if (savedMenu) {
+      try {
+        const parsedData = JSON.parse(savedMenu);
+        setMenuData(parsedData);
+        previousMenuDataRef.current = parsedData;
+      } catch (error) {
+        console.error('Error parsing saved menu data:', error);
+        setMenuData({});
+      }
     }
-  }, [showRecipeSelector]);
+    
+    fetchRecipesFromAPI();
+  }, [fetchRecipesFromAPI]);
 
+  // Сохраняем меню в localStorage при изменении
   useEffect(() => {
-    // Сохраняем меню в localStorage при изменении
-    localStorage.setItem('menuData', JSON.stringify(menuData));
+    try {
+      localStorage.setItem('menuData', JSON.stringify(menuData));
+    } catch (error) {
+      console.error('Error saving menu data:', error);
+    }
   }, [menuData]);
 
+  // Отслеживание изменений menuData и отправка на сервер
   useEffect(() => {
-    // При переключении на неделю устанавливаем сегодняшнюю дату
-    if (periodType === 'week') {
-      setSelectedDate(new Date());
-    }
-  }, [periodType]);
+    const previousMenuData = previousMenuDataRef.current;
+    const currentMenuData = menuData;
+
+    // Находим измененные дни
+    const allDates = new Set([
+      ...Object.keys(previousMenuData),
+      ...Object.keys(currentMenuData)
+    ]);
+
+    allDates.forEach(dateString => {
+      const previousDayData = previousMenuData[dateString];
+      const currentDayData = currentMenuData[dateString];
+
+      // Если день был добавлен или изменен
+      if (JSON.stringify(previousDayData) !== JSON.stringify(currentDayData)) {
+        // Если день был удален, отправляем null или пустой объект
+        if (!currentDayData) {
+          sendDayToServer(dateString, null);
+        } else {
+          sendDayToServer(dateString, currentDayData);
+        }
+      }
+    });
+
+    // Обновляем предыдущее значение
+    previousMenuDataRef.current = currentMenuData;
+  }, [menuData, sendDayToServer]);
 
   const formatDate = (date) => {
     return date.toISOString().split('T')[0];
   };
 
-  const getDaysArray = () => {
+  const getDaysArray = useCallback(() => {
     const days = [];
     const startDate = new Date(selectedDate);
     
     if (periodType === 'day') {
       days.push(new Date(startDate));
     } else if (periodType === 'week') {
-      // Неделя начинается с выбранной даты (сегодня)
+      // Находим понедельник недели
+      const dayOfWeek = startDate.getDay();
+      const monday = new Date(startDate);
+      monday.setDate(startDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      
       for (let i = 0; i < 7; i++) {
-        const day = new Date(startDate);
-        day.setDate(startDate.getDate() + i);
+        const day = new Date(monday);
+        day.setDate(monday.getDate() + i);
         days.push(day);
       }
     } else {
-      // Месяц вперед
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + 1);
+      // Месяц: показываем весь месяц
+      const firstDay = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
       
-      const current = new Date(startDate);
-      while (current < endDate) {
+      const current = new Date(firstDay);
+      while (current <= lastDay) {
         days.push(new Date(current));
         current.setDate(current.getDate() + 1);
       }
     }
     
     return days;
-  };
+  }, [periodType, selectedDate]);
 
-  const groupDaysByWeeks = (days) => {
+  const groupDaysByWeeks = useCallback((days) => {
     const weeks = [];
     let currentWeek = [];
     
     days.forEach((day, index) => {
-      const dayOfWeek = day.getDay();
-      
-      if (dayOfWeek === 1 || currentWeek.length === 0) {
+      // Начинаем новую неделю в понедельник или если неделя пустая
+      if (day.getDay() === 1 || currentWeek.length === 0) {
         if (currentWeek.length > 0) {
           weeks.push(currentWeek);
         }
@@ -120,13 +177,14 @@ export default function Menu() {
         currentWeek.push(day);
       }
       
+      // Добавляем последнюю неделю в конце
       if (index === days.length - 1) {
         weeks.push(currentWeek);
       }
     });
     
     return weeks;
-  };
+  }, []);
 
   const mealTypes = [
     { key: 'breakfast', label: 'Завтрак' },
@@ -138,63 +196,46 @@ export default function Menu() {
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe) return;
 
-    setMenuData(async (prev) => {
+    setMenuData(prev => {
       const newData = { ...prev };
-      console.log(prev)
       if (!newData[dateString]) {
         newData[dateString] = { breakfast: [], lunch: [], dinner: [] };
       }
-      if (!newData[dateString][mealType]) {
-        newData[dateString][mealType] = [];
-      }
+      
+      // Создаем копию массива, если он существует, или пустой массив
+      const currentRecipes = newData[dateString][mealType] 
+        ? [...newData[dateString][mealType]] 
+        : [];
       
       // Проверяем, не добавлен ли уже этот рецепт
-      const isAlreadyAdded = newData[dateString][mealType].some(r => r.id === recipeId);
+      const isAlreadyAdded = currentRecipes.some(r => r.id === recipeId);
       if (!isAlreadyAdded) {
-        newData[dateString][mealType] = [...newData[dateString][mealType], recipe];
+        currentRecipes.push(recipe);
+        newData[dateString][mealType] = currentRecipes;
       }
-
-
-      const day_number = dateString[8] + dateString[9]
-      const outData = newData[dateString]
-      const response = await fetch('http://localhost:8000/menu/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          menu: outData,
-          day_number: parseInt(day_number)
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Ошибка при добавлении продукта');
-      }
-
       
       return newData;
     });
     setShowRecipeSelector(null);
   }, [recipes]);
 
-  const removeRecipeFromDay = (dateString, mealType, recipeId) => {
+  const removeRecipeFromDay = useCallback((dateString, mealType, recipeId) => {
     setMenuData(prev => {
       const newData = { ...prev };
       if (newData[dateString] && newData[dateString][mealType]) {
         newData[dateString][mealType] = newData[dateString][mealType].filter(r => r.id !== recipeId);
+        
+        // Очищаем пустые массивы и объекты
         if (newData[dateString][mealType].length === 0) {
           delete newData[dateString][mealType];
         }
-        // Удаляем день, если все приемы пищи пусты
         if (Object.keys(newData[dateString]).length === 0) {
           delete newData[dateString];
         }
       }
       return newData;
     });
-  };
+  }, []);
 
   const getDayName = (date) => {
     const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
@@ -216,7 +257,20 @@ export default function Menu() {
     if (weekDays.length === 0) return '';
     const first = weekDays[0];
     const last = weekDays[weekDays.length - 1];
-    return `${first.getDate()}—${last.getDate()} ${getMonthName(first)}`;
+    
+    if (first.getMonth() === last.getMonth()) {
+      return `${first.getDate()}—${last.getDate()} ${getMonthName(first)}`;
+    } else {
+      return `${first.getDate()} ${getMonthName(first)} — ${last.getDate()} ${getMonthName(last)}`;
+    }
+  };
+
+  const handlePeriodChange = (newPeriodType) => {
+    setPeriodType(newPeriodType);
+    // При переключении на неделю сбрасываем на текущую неделю
+    if (newPeriodType === 'week') {
+      setSelectedDate(new Date());
+    }
   };
 
   const days = getDaysArray();
@@ -229,23 +283,24 @@ export default function Menu() {
         <div className="period-selector">
           <button
             className={periodType === 'day' ? 'active' : ''}
-            onClick={() => setPeriodType('day')}
+            onClick={() => handlePeriodChange('day')}
           >
             День
           </button>
           <button
             className={periodType === 'week' ? 'active' : ''}
-            onClick={() => setPeriodType('week')}
+            onClick={() => handlePeriodChange('week')}
           >
             Неделя
           </button>
           <button
             className={periodType === 'month' ? 'active' : ''}
-            onClick={() => setPeriodType('month')}
+            onClick={() => handlePeriodChange('month')}
           >
             Месяц
           </button>
         </div>
+        
         {periodType === 'day' && (
           <input
             type="date"
@@ -254,6 +309,7 @@ export default function Menu() {
             className="date-input"
           />
         )}
+        
         {periodType === 'week' && (
           <div className="week-range-display">
             {weeks.length > 0 && weeks[0].length > 0 && (
@@ -267,6 +323,7 @@ export default function Menu() {
             />
           </div>
         )}
+        
         {periodType === 'month' && (
           <input
             type="month"
@@ -307,14 +364,14 @@ export default function Menu() {
                       <td className="meal-type-cell">{mealType.label}</td>
                       {week.map((day, dayIndex) => {
                         const dateString = formatDate(day);
-                        const dayData = menuData[dateString] || { breakfast: [], lunch: [], dinner: [] };
+                        const dayData = menuData[dateString] || {};
                         const mealRecipes = dayData[mealType.key] || [];
                         
                         return (
                           <td key={dayIndex} className="meal-cell">
                             <div className="meal-recipes">
                               {mealRecipes.map((recipe, recipeIndex) => (
-                                <div key={recipeIndex} className="meal-recipe-card">
+                                <div key={`${recipe.id}-${recipeIndex}`} className="meal-recipe-card">
                                   <span className="recipe-name">{recipe.name}</span>
                                   <button
                                     className="remove-recipe-button"
@@ -358,11 +415,13 @@ export default function Menu() {
                 ✕
               </button>
             </div>
+            
             {loadingRecipes && (
               <div className="recipes-loading">
                 Загрузка рецептов...
               </div>
             )}
+            
             {recipesError && (
               <div className="recipes-error">
                 <p>{recipesError}</p>
@@ -371,6 +430,7 @@ export default function Menu() {
                 </button>
               </div>
             )}
+            
             {!loadingRecipes && !recipesError && (
               <div className="recipes-selector-list">
                 {recipes.length === 0 ? (
@@ -382,11 +442,11 @@ export default function Menu() {
                     <div
                       key={recipe.id}
                       className="recipe-selector-item"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addRecipeToDay(showRecipeSelector.dateString, showRecipeSelector.mealType, recipe.id);
-                      }}
+                      onClick={() => addRecipeToDay(
+                        showRecipeSelector.dateString, 
+                        showRecipeSelector.mealType, 
+                        recipe.id
+                      )}
                     >
                       <span>{recipe.name}</span>
                     </div>
